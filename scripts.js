@@ -1503,7 +1503,7 @@ function setupScoresPageView() {
             showToast('មានបញ្ហា សូមព្យាយាមម្តងទៀត', true);
             return;
         }
-
+    
         const batch = writeBatch(db);
         const scoreRows = scoresPageTableContainer.querySelectorAll('tr[data-student-id]');
         
@@ -1519,18 +1519,32 @@ function setupScoresPageView() {
                 const scoreValue = input.value;
                 if (scoreValue !== '') scoresForMonth[subjectId] = parseFloat(scoreValue);
             });
-
+    
             const absenceP = row.querySelector('input.absence-input[data-type="p"]');
             const absenceUp = row.querySelector('input.absence-input[data-type="up"]');
             if (absenceP.value) attendance.withPermission = parseInt(absenceP.value);
             if (absenceUp.value) attendance.withoutPermission = parseInt(absenceUp.value);
-
+    
+            // Get the calculated summary values from the DOM
+            const totalScore = parseFloat(row.querySelector(`#total-score-${studentId}`).textContent) || 0;
+            const averageScore = parseFloat(row.querySelector(`#average-score-${studentId}`).textContent) || 0;
+            const rank = parseInt(row.querySelector(`#rank-${studentId}`).textContent) || null;
+            const grade = row.querySelector(`#grade-${studentId}`).textContent || '';
+            const totalAbsence = parseInt(row.querySelector(`#total-absence-${studentId}`).textContent) || 0;
+    
             const updatePayload = {};
             updatePayload[selectedKey] = {
                 scores: scoresForMonth,
-                attendance: attendance
+                attendance: attendance,
+                summary: {
+                    totalScore: totalScore,
+                    average: averageScore,
+                    rank: rank,
+                    grade: grade,
+                    totalAbsence: totalAbsence
+                }
             };
-
+    
             batch.set(scoreDocRef, updatePayload, { merge: true });
         }
         
