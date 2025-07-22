@@ -1676,12 +1676,8 @@ async function generateScoresPageTable() {
         return;
     }
     
-    const isMonthlySemesterExam = selectedKey === 'sem1_month_exam' || selectedKey === 'sem2_month_exam';
-    const isFinalReport = selectedKey === 'sem1_report' || selectedKey === 'sem2_report';
-    const isAnnualResult = selectedKey === 'end_year_result';
-
-    saveScoresPageBtn.classList.toggle('hidden', isMonthlySemesterExam || isFinalReport || isAnnualResult);
-
+    // Always show the save button now
+    saveScoresPageBtn.classList.remove('hidden');
 
     const selectedClass = allClassesCache.find(c => c.id === classId);
     if (!selectedClass) return;
@@ -1692,7 +1688,7 @@ async function generateScoresPageTable() {
     const assignedStudents = allStudentsCache.filter(s => assignedStudentIds.includes(s.id)).sort((a,b) => a.name.localeCompare(b.name, 'km'));
 
     if (assignedStudents.length === 0 || assignedSubjects.length === 0) {
-        scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមបន្ថែមសិស្ស និងមុខវិជ្ជាទៅក្នុងថ្នាក់នេះជាមុនសិន។</p>';
+        scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមបន្ថែមសិស្ស และមុខវិជ្ជាទៅក្នុងថ្នាក់នេះជាមុនសិន។</p>';
         saveScoresPageBtn.classList.add('hidden');
         return;
     }
@@ -1725,25 +1721,21 @@ async function generateScoresPageTable() {
                   <th class="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">អ. សរុប</th>
                   </tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
 
+    const isCalculatedField = selectedKey.includes('month_exam') || selectedKey.includes('report') || selectedKey.includes('result');
+
     assignedStudents.forEach((student, studentIndex) => {
         tableHtml += `<tr data-student-id="${student.id}"><td class="p-3 whitespace-nowrap sticky left-0 bg-white z-10">${student.name}</td>`;
         
         let subjectColIndex = 0;
         assignedSubjects.forEach((subject) => {
             let scoreValue = studentScoresMap[student.id]?.[selectedKey]?.scores?.[subject.id] ?? 0;
-            let isReadOnly = false;
+            let isReadOnly = isCalculatedField; // All calculated fields are read-only
 
-            if (isMonthlySemesterExam) { 
-                isReadOnly = true;
+            if (selectedKey === 'sem1_month_exam' || selectedKey === 'sem2_month_exam') {
                 const semester = selectedKey.startsWith('sem1') ? 1 : 2;
-                const monthKeys = [];
-                for (let i = 1; i <= 6; i++) {
-                    monthKeys.push(`sem${semester}_month_${i}`);
-                }
-
+                const monthKeys = Array.from({length: 6}, (_, i) => `sem${semester}_month_${i + 1}`);
                 let totalScore = 0;
                 let monthCount = 0;
-
                 monthKeys.forEach(monthKey => {
                     const monthScoreData = studentScoresMap[student.id]?.[monthKey]?.scores;
                     if (monthScoreData && monthScoreData[subject.id] !== undefined) {
@@ -1751,85 +1743,20 @@ async function generateScoresPageTable() {
                         monthCount++;
                     }
                 });
-
-                if (monthCount > 0) {
-                    scoreValue = (totalScore / monthCount).toFixed(2);
-                }
-            } else if (isFinalReport) {
-                isReadOnly = true;
+                scoreValue = monthCount > 0 ? (totalScore / monthCount).toFixed(2) : 0;
+            } else if (selectedKey === 'sem1_report' || selectedKey === 'sem2_report') {
                 const semester = selectedKey.startsWith('sem1') ? 1 : 2;
-                const monthExamKey = `sem${semester}_month_exam`;
-                const finalExamKey = `sem${semester}_exam`;
-
-                // We need to calculate the month exam average first
-                const monthKeys = [];
-                for (let i = 1; i <= 6; i++) {
-                    monthKeys.push(`sem${semester}_month_${i}`);
-                }
-                let monthExamTotal = 0;
-                let monthExamCount = 0;
-                monthKeys.forEach(monthKey => {
-                    const monthScoreData = studentScoresMap[student.id]?.[monthKey]?.scores;
-                    if (monthScoreData && monthScoreData[subject.id] !== undefined) {
-                        monthExamTotal += parseFloat(monthScoreData[subject.id]);
-                        monthExamCount++;
-                    }
-                });
-                const monthExamAvg = monthExamCount > 0 ? (monthExamTotal / monthExamCount) : null;
-
-                const finalExamScoreData = studentScoresMap[student.id]?.[finalExamKey]?.scores;
-                const finalExamScore = (finalExamScoreData && finalExamScoreData[subject.id] !== undefined) ? parseFloat(finalExamScoreData[subject.id]) : null;
-
-                if (monthExamAvg !== null && finalExamScore !== null) {
-                    scoreValue = ((monthExamAvg + finalExamScore) / 2).toFixed(2);
-                }
-
-            } else if (isAnnualResult) {
-                isReadOnly = true;
-                
-                // Calculate Sem 1 Report Score
-                let sem1ReportScore = null;
-                const sem1MonthKeys = ['sem1_month_1', 'sem1_month_2', 'sem1_month_3', 'sem1_month_4', 'sem1_month_5', 'sem1_month_6'];
-                let sem1MonthTotal = 0;
-                let sem1MonthCount = 0;
-                sem1MonthKeys.forEach(key => {
-                    const scoreData = studentScoresMap[student.id]?.[key]?.scores;
-                    if (scoreData && scoreData[subject.id] !== undefined) {
-                        sem1MonthTotal += parseFloat(scoreData[subject.id]);
-                        sem1MonthCount++;
-                    }
-                });
-                const sem1MonthAvg = sem1MonthCount > 0 ? (sem1MonthTotal / sem1MonthCount) : null;
-                const sem1ExamScoreData = studentScoresMap[student.id]?.['sem1_exam']?.scores;
-                const sem1ExamScore = (sem1ExamScoreData && sem1ExamScoreData[subject.id] !== undefined) ? parseFloat(sem1ExamScoreData[subject.id]) : null;
-                if (sem1MonthAvg !== null && sem1ExamScore !== null) {
-                    sem1ReportScore = (sem1MonthAvg + sem1ExamScore) / 2;
-                }
-
-                // Calculate Sem 2 Report Score
-                let sem2ReportScore = null;
-                const sem2MonthKeys = ['sem2_month_1', 'sem2_month_2', 'sem2_month_3', 'sem2_month_4', 'sem2_month_5', 'sem2_month_6'];
-                let sem2MonthTotal = 0;
-                let sem2MonthCount = 0;
-                sem2MonthKeys.forEach(key => {
-                    const scoreData = studentScoresMap[student.id]?.[key]?.scores;
-                    if (scoreData && scoreData[subject.id] !== undefined) {
-                        sem2MonthTotal += parseFloat(scoreData[subject.id]);
-                        sem2MonthCount++;
-                    }
-                });
-                const sem2MonthAvg = sem2MonthCount > 0 ? (sem2MonthTotal / sem2MonthCount) : null;
-                const sem2ExamScoreData = studentScoresMap[student.id]?.['sem2_exam']?.scores;
-                const sem2ExamScore = (sem2ExamScoreData && sem2ExamScoreData[subject.id] !== undefined) ? parseFloat(sem2ExamScoreData[subject.id]) : null;
-                if (sem2MonthAvg !== null && sem2ExamScore !== null) {
-                    sem2ReportScore = (sem2MonthAvg + sem2ExamScore) / 2;
-                }
-                
-                // Calculate Final Annual Score
-                if (sem1ReportScore !== null && sem2ReportScore !== null) {
-                    scoreValue = ((sem1ReportScore + sem2ReportScore) / 2).toFixed(2);
-                }
-
+                const monthExamData = studentScoresMap[student.id]?.[`sem${semester}_month_exam`]?.summary;
+                const finalExamData = studentScoresMap[student.id]?.[`sem${semester}_exam`]?.summary;
+                const monthExamAvg = monthExamData?.average ?? null;
+                const finalExamScore = finalExamData?.average ?? null;
+                scoreValue = (monthExamAvg !== null && finalExamScore !== null) ? ((monthExamAvg + finalExamScore) / 2).toFixed(2) : 0;
+            } else if (selectedKey === 'end_year_result') {
+                const sem1ReportData = studentScoresMap[student.id]?.['sem1_report']?.summary;
+                const sem2ReportData = studentScoresMap[student.id]?.['sem2_report']?.summary;
+                const sem1ReportScore = sem1ReportData?.average ?? null;
+                const sem2ReportScore = sem2ReportData?.average ?? null;
+                scoreValue = (sem1ReportScore !== null && sem2ReportScore !== null) ? ((sem1ReportScore + sem2ReportScore) / 2).toFixed(2) : 0;
             }
 
             tableHtml += `<td class="p-1"><input type="text" inputmode="decimal" class="score-input w-24 p-2 border-gray-300 rounded-md text-center ${isReadOnly ? 'bg-gray-100' : ''}" 
