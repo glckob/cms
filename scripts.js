@@ -267,6 +267,7 @@ function populateYearFilterDropdown() {
     const sortedYears = [...allYearsCache].sort((a,b) => b.startYear - a.startYear);
     const yearOptionsHtml = '<option value="">-- សូមជ្រើសរើសឆ្នាំសិក្សា --</option>' + sortedYears.map(year => `<option value="${year.id}">${year.name}</option>`).join('');
     
+    // Populate all dropdowns
     studentYearFilter.innerHTML = yearOptionsHtml;
     settingsYearSelect.innerHTML = yearOptionsHtml;
     scoresYearFilter.innerHTML = yearOptionsHtml;
@@ -274,25 +275,34 @@ function populateYearFilterDropdown() {
     classYearFilter.innerHTML = yearOptionsHtml;
     chartYearFilter.innerHTML = yearOptionsHtml;
 
-    // Smart Default: Select the latest year
+    // Smart Default: Select the latest year for all dropdowns EXCEPT scoresYearFilter
     const latestYearId = sortedYears[0]?.id;
     if (latestYearId) {
+        // Set default value for all except the scores page
         studentYearFilter.value = latestYearId;
         settingsYearSelect.value = latestYearId;
-        scoresYearFilter.value = latestYearId;
         subjectYearFilter.value = latestYearId;
         classYearFilter.value = latestYearId;
         chartYearFilter.value = latestYearId;
+        
+        // Reset scores page year filter to default placeholder
+        scoresYearFilter.value = ""; 
 
-        // Manually trigger change events to populate dependent dropdowns
+        // Manually trigger change events for dropdowns that have a default value set
         studentYearFilter.dispatchEvent(new Event('change'));
         classYearFilter.dispatchEvent(new Event('change'));
-        scoresYearFilter.dispatchEvent(new Event('change'));
         subjectYearFilter.dispatchEvent(new Event('change'));
         settingsYearSelect.dispatchEvent(new Event('change'));
         chartYearFilter.dispatchEvent(new Event('change'));
+        
+        // Also need to clear the dependent dropdowns on the scores page since no year is selected
+        scoresClassFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសថ្នាក់ --</option>';
+        scoresExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសការប្រឡង --</option>';
+        scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសឆ្នាំសិក្សាដើម្បីចាប់ផ្តើម។</p>';
+        saveScoresPageBtn.classList.add('hidden');
     }
 }
+
 
 function populateClassFilterDropdown() {
     const selectedYearId = studentYearFilter.value;
