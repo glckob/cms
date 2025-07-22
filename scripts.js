@@ -337,7 +337,6 @@ function renderStudentGenderChart() {
 
     if (!selectedYearId || allStudentsCache.length === 0) {
         studentGenderChartCanvas.getContext('2d').clearRect(0, 0, studentGenderChartCanvas.width, studentGenderChartCanvas.height);
-        // Optionally show a message
         return;
     }
 
@@ -347,12 +346,13 @@ function renderStudentGenderChart() {
 
     const maleCount = studentsInYear.filter(s => s.gender === 'ប្រុស').length;
     const femaleCount = studentsInYear.filter(s => s.gender === 'ស្រី').length;
+    const totalStudents = maleCount + femaleCount;
 
     const ctx = studentGenderChartCanvas.getContext('2d');
     studentGenderChart = new Chart(ctx, {
         type: 'pie',
         data: {
-            labels: ['សិស្សប្រុស', 'សិស្សស្រី'],
+            labels: [`សិស្សប្រុស (${maleCount})`, `សិស្សស្រី (${femaleCount})`],
             datasets: [{
                 label: 'ចំនួនសិស្ស',
                 data: [maleCount, femaleCount],
@@ -379,11 +379,25 @@ function renderStudentGenderChart() {
                             size: 14
                         }
                     }
+                },
+                title: {
+                    display: true,
+                    text: `សិស្សសរុប: ${totalStudents} នាក់`,
+                    font: {
+                        family: "'Noto Sans Khmer', sans-serif",
+                        size: 16,
+                        weight: 'bold'
+                    },
+                    padding: {
+                        top: 5,
+                        bottom: 15
+                    }
                 }
             }
         }
     });
 }
+
 
 // --- DATA SUBSCRIPTIONS & UI UPDATES ---
 function subscribeToSettings() {
