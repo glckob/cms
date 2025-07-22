@@ -4,17 +4,20 @@ import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWith
 import { getFirestore, collection, doc, addDoc, getDocs, onSnapshot, setDoc, deleteDoc, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- CONFIGURATION ---
-// !!! សំខាន់ !!!
-// សូមប្រាកដថាค่าเหล่านี้ตรงกับการตั้งค่าโปรเจกต์ Firebase ของคุณ
-// ค่าที่ไม่ถูกต้องនៅទីនេះគឺជាสาเหตุទូទៅនៃปัญหาการเข้าสู่ระบบ/การยืนยันตัวตน
-const firebaseConfig = {
-    apiKey: "AIzaSyCOo5oxLfCCxNAd78vGEruoPm2ng-7Etmg",
-    authDomain: "glckob.firebaseapp.com",
-    projectId: "glckob",
-    storageBucket: "glckob.appspot.com",
-    messagingSenderId: "766670265981",
-    appId: "1:766670265981:web:b1d0b0b0b0b0b0b0"
-};
+// The firebaseConfig object is now loaded from a global variable `__firebase_config`
+// provided by the environment. This ensures the correct configuration is used.
+const firebaseConfig = typeof __firebase_config !== 'undefined'
+    ? JSON.parse(__firebase_config)
+    : {
+        // Default config for local testing if __firebase_config is not available.
+        // IMPORTANT: Replace with your actual Firebase project configuration.
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'glckob-school-app';
 
@@ -1513,7 +1516,7 @@ function setupScoresPageView() {
             showToast('មានបញ្ហា សូមព្យាយាមម្តងទៀត', true);
             return;
         }
-
+    
         const batch = writeBatch(db);
         const scoreRows = scoresPageTableContainer.querySelectorAll('tr[data-student-id]');
         
@@ -1522,25 +1525,34 @@ function setupScoresPageView() {
             const scoreDocRef = doc(db, `artifacts/${appId}/users/${userId}/classes/${classId}/scores`, studentId);
             
             const scoresForMonth = {};
-            const attendance = {};
-            
             row.querySelectorAll('.score-input').forEach(input => {
                 const subjectId = input.dataset.subjectId;
                 const scoreValue = input.value;
                 if (scoreValue !== '') scoresForMonth[subjectId] = parseFloat(scoreValue);
             });
-
+    
+            const attendance = {};
             const absenceP = row.querySelector('input.absence-input[data-type="p"]');
             const absenceUp = row.querySelector('input.absence-input[data-type="up"]');
             if (absenceP.value) attendance.withPermission = parseInt(absenceP.value);
             if (absenceUp.value) attendance.withoutPermission = parseInt(absenceUp.value);
-
+    
+            // Get summary data from the table cells
+            const summary = {
+                totalScore: parseFloat(row.querySelector(`#total-score-${studentId}`).textContent) || 0,
+                average: parseFloat(row.querySelector(`#average-score-${studentId}`).textContent) || 0,
+                rank: parseInt(row.querySelector(`#rank-${studentId}`).textContent) || 0,
+                grade: row.querySelector(`#grade-${studentId}`).textContent || 'N/A',
+                totalAbsence: parseInt(row.querySelector(`#total-absence-${studentId}`).textContent) || 0,
+            };
+    
             const updatePayload = {};
             updatePayload[selectedKey] = {
                 scores: scoresForMonth,
-                attendance: attendance
+                attendance: attendance,
+                summary: summary // Add summary object to the payload
             };
-
+    
             batch.set(scoreDocRef, updatePayload, { merge: true });
         }
         
@@ -1713,25 +1725,37 @@ async function generateScoresPageTable() {
 
         const examData = studentScoresMap[student.id]?.[selectedKey] || {};
         const attendanceData = examData.attendance || {};
+        const summaryData = examData.summary || {}; // Get summary data
+
         const absenceP = attendanceData.withPermission || '';
         const absenceUp = attendanceData.withoutPermission || '';
 
-        tableHtml += `<td id="total-score-${student.id}" class="p-3 font-bold text-center align-middle">0.00</td>
-                      <td id="average-score-${student.id}" class="p-3 font-bold text-center align-middle">0.00</td>
-                      <td id="rank-${student.id}" class="p-3 font-bold text-center align-middle text-blue-600"></td>
-                      <td id="grade-${student.id}" class="p-3 font-bold text-center align-middle text-green-600"></td>
+        // Use saved summary data if available, otherwise use defaults
+        const totalScore = summaryData.totalScore ? summaryData.totalScore.toFixed(2) : '0.00';
+        const averageScore = summaryData.average ? summaryData.average.toFixed(2) : '0.00';
+        const rank = summaryData.rank || '';
+        const grade = summaryData.grade || '';
+        const totalAbsence = summaryData.totalAbsence !== undefined ? summaryData.totalAbsence : (parseInt(absenceP || 0) + parseInt(absenceUp || 0));
+
+
+        tableHtml += `<td id="total-score-${student.id}" class="p-3 font-bold text-center align-middle">${totalScore}</td>
+                      <td id="average-score-${student.id}" class="p-3 font-bold text-center align-middle">${averageScore}</td>
+                      <td id="rank-${student.id}" class="p-3 font-bold text-center align-middle text-blue-600">${rank}</td>
+                      <td id="grade-${student.id}" class="p-3 font-bold text-center align-middle text-green-600">${grade}</td>
                       <td class="p-1"><input type="number" class="absence-input w-20 p-2 border-gray-300 rounded-md text-center" data-type="p" data-row="${studentIndex}" data-col="${subjectColIndex}" data-student-id="${student.id}" value="${absenceP}"></td>
                       <td class="p-1"><input type="number" class="absence-input w-20 p-2 border-gray-300 rounded-md text-center" data-type="up" data-row="${studentIndex}" data-col="${subjectColIndex + 1}" data-student-id="${student.id}" value="${absenceUp}"></td>
-                      <td id="total-absence-${student.id}" class="p-3 font-bold text-center align-middle">0</td>
+                      <td id="total-absence-${student.id}" class="p-3 font-bold text-center align-middle">${totalAbsence}</td>
                       </tr>`;
     });
     tableHtml += '</tbody></table>';
     scoresPageTableContainer.innerHTML = tableHtml;
     
-    // Initial calculation for all students
-    assignedStudents.forEach(student => {
-        updateStudentScoreSummary(student.id);
-    });
+    // Initial calculation for all students if no summary data is loaded
+    if (Object.keys(studentScoresMap).length === 0 || !studentScoresMap[assignedStudents[0].id]?.[selectedKey]?.summary) {
+        assignedStudents.forEach(student => {
+            updateStudentScoreSummary(student.id);
+        });
+    }
 }
 
 // --- NEW RANKINGS PAGE LOGIC ---
