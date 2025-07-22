@@ -1484,17 +1484,50 @@ function setupScoresPageView() {
         }
     });
 
+    // New input and blur listeners for validation
     scoresPageTableContainer.addEventListener('input', (e) => {
         const input = e.target;
-        if (input.matches('input.score-input, input.absence-input')) {
-            // Limit to 3 digits
-            if (input.value.length > 3) {
-                input.value = input.value.slice(0, 3);
+        if (input.matches('input.score-input')) {
+            // Replace comma with dot for consistent decimal handling
+            if (input.value.includes(',')) {
+                input.value = input.value.replace(',', '.');
+            }
+    
+            const subjectId = input.dataset.subjectId;
+            const subject = allSubjectsCache.find(s => s.id === subjectId);
+            const maxScore = subject ? parseFloat(subject.maxScore) : 100;
+    
+            let numericValue = parseFloat(input.value);
+    
+            // Prevent value from exceeding max score
+            if (!isNaN(numericValue) && numericValue > maxScore) {
+                showToast(`ពិន្ទុអតិបរមាគឺ ${maxScore}`, true);
+                input.value = maxScore;
             }
             
             updateStudentScoreSummary(input.dataset.studentId);
+    
+        } else if (input.matches('input.absence-input')) {
+            // Limit to 3 digits
+            if (input.value.length > 2) {
+                input.value = input.value.slice(0, 2);
+            }
+            updateStudentScoreSummary(input.dataset.studentId);
         }
     });
+
+    scoresPageTableContainer.addEventListener('blur', (e) => {
+        const input = e.target;
+        if (input.matches('input.score-input')) {
+            // On leaving the input, if it's empty or not a number, set it to 0
+            const cleanValue = input.value.replace(',', '.');
+            if (cleanValue === '' || isNaN(parseFloat(cleanValue))) {
+                input.value = 0;
+            }
+            // Also re-run summary update on blur to catch the change to 0
+            updateStudentScoreSummary(input.dataset.studentId);
+        }
+    }, true); // Use capture phase to ensure it runs
 
     saveScoresPageBtn.addEventListener('click', async () => {
         const classId = scoresClassFilter.value;
@@ -1516,8 +1549,11 @@ function setupScoresPageView() {
             
             row.querySelectorAll('.score-input').forEach(input => {
                 const subjectId = input.dataset.subjectId;
-                const scoreValue = input.value;
-                if (scoreValue !== '') scoresForMonth[subjectId] = parseFloat(scoreValue);
+                // Ensure comma is replaced and it's a valid number before saving
+                const scoreValue = parseFloat(input.value.replace(',', '.'));
+                if (!isNaN(scoreValue)) {
+                    scoresForMonth[subjectId] = scoreValue;
+                }
             });
     
             const absenceP = row.querySelector('input.absence-input[data-type="p"]');
@@ -1612,7 +1648,8 @@ function updateStudentScoreSummary(studentId) {
     
     let totalScore = 0;
     studentRow.querySelectorAll('input.score-input').forEach(input => {
-        totalScore += parseFloat(input.value) || 0;
+        const cleanValue = input.value.replace(',', '.');
+        totalScore += parseFloat(cleanValue) || 0;
     });
 
     const averageScore = totalCoefficient > 0 ? (totalScore / totalCoefficient) : 0;
@@ -1693,7 +1730,7 @@ async function generateScoresPageTable() {
         
         let subjectColIndex = 0;
         assignedSubjects.forEach((subject) => {
-            let scoreValue = '';
+            let scoreValue = studentScoresMap[student.id]?.[selectedKey]?.scores?.[subject.id] ?? 0;
             let isReadOnly = false;
 
             if (isMonthlySemesterExam) { 
@@ -1793,14 +1830,9 @@ async function generateScoresPageTable() {
                     scoreValue = ((sem1ReportScore + sem2ReportScore) / 2).toFixed(2);
                 }
 
-            } else {
-                const examData = studentScoresMap[student.id]?.[selectedKey] || {};
-                const scoresData = examData.scores !== undefined ? examData.scores : examData;
-                scoreValue = scoresData[subject.id] || '';
             }
 
-            tableHtml += `<td class="p-1"><input type="number" class="score-input w-24 p-2 border-gray-300 rounded-md text-center ${isReadOnly ? 'bg-gray-100' : ''}" 
-                            max="${subject.maxScore || 100}"
+            tableHtml += `<td class="p-1"><input type="text" inputmode="decimal" class="score-input w-24 p-2 border-gray-300 rounded-md text-center ${isReadOnly ? 'bg-gray-100' : ''}" 
                             data-row="${studentIndex}" data-col="${subjectColIndex}" 
                             data-student-id="${student.id}" data-subject-id="${subject.id}" 
                             value="${scoreValue}" ${isReadOnly ? 'readonly' : ''}></td>`;
@@ -1809,8 +1841,8 @@ async function generateScoresPageTable() {
 
         const examData = studentScoresMap[student.id]?.[selectedKey] || {};
         const attendanceData = examData.attendance || {};
-        const absenceP = attendanceData.withPermission || '';
-        const absenceUp = attendanceData.withoutPermission || '';
+        const absenceP = attendanceData.withPermission ?? 0;
+        const absenceUp = attendanceData.withoutPermission ?? 0;
 
         tableHtml += `<td id="total-score-${student.id}" class="p-3 font-bold text-center align-middle">0.00</td>
                       <td id="average-score-${student.id}" class="p-3 font-bold text-center align-middle">0.00</td>
