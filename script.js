@@ -4,20 +4,15 @@ import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWith
 import { getFirestore, collection, doc, addDoc, getDocs, onSnapshot, setDoc, deleteDoc, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- CONFIGURATION ---
-// The firebaseConfig object is now loaded from a global variable `__firebase_config`
-// provided by the environment. This ensures the correct configuration is used.
-const firebaseConfig = typeof __firebase_config !== 'undefined'
-    ? JSON.parse(__firebase_config)
-    : {
-        // Default config for local testing if __firebase_config is not available.
-        // IMPORTANT: Replace with your actual Firebase project configuration.
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID"
-    };
+// Reverted to the original hardcoded Firebase config to ensure connectivity.
+const firebaseConfig = {
+    apiKey: "AIzaSyCOo5oxLfCCxNAd78vGEruoPm2ng-7Etmg",
+    authDomain: "glckob.firebaseapp.com",
+    projectId: "glckob",
+    storageBucket: "glckob.appspot.com",
+    messagingSenderId: "766670265981",
+    appId: "1:766670265981:web:b1d0b0b0b0b0b0b0"
+};
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'glckob-school-app';
 
