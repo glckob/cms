@@ -1410,12 +1410,12 @@ function setupScoresPageView() {
     });
 
     scoresClassFilter.addEventListener('change', async () => {
-        const yearId = scoresClassFilter.value;
+        const yearId = scoresYearFilter.value; // FIX: Was using scoresClassFilter.value
         const classId = scoresClassFilter.value;
         scoresExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសការប្រឡង --</option>';
         scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសការប្រឡង។</p>';
         saveScoresPageBtn.classList.add('hidden');
-
+    
         if (yearId && classId) {
             const settingsRef = doc(db, `artifacts/${appId}/users/${userId}/settings`, yearId);
             const docSnap = await getDoc(settingsRef);
@@ -1437,7 +1437,16 @@ function setupScoresPageView() {
                 }
                 if (data.endOfYearResultName) scoreEntryOptions.push({ key: 'end_year_result', name: data.endOfYearResultName });
                 
-                scoresExamFilter.innerHTML += scoreEntryOptions.map(opt => `<option value="${opt.key}">${opt.name}</option>`).join('');
+                if (scoreEntryOptions.length > 0) {
+                     scoresExamFilter.innerHTML += scoreEntryOptions.map(opt => `<option value="${opt.key}">${opt.name}</option>`).join('');
+                } else {
+                     scoresExamFilter.innerHTML = '<option value="">-- មិនមានការប្រឡងถูกกำหนด --</option>';
+                     scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមចូលទៅកាន់ទំព័រ "កំណត់" เพื่อกำหนดเดือนสอบสำหรับปีการศึกษานี้។</p>';
+                }
+               
+            } else {
+                scoresExamFilter.innerHTML = '<option value="">-- សូមកំណត់ឆមាសជាមុនសិន --</option>';
+                scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">មិនទាន់មានការកំណត់ឆមាសសម្រាប់ឆ្នាំសិក្សានេះទេ។ សូមចូលទៅកាន់ទំព័រ "កំណត់"។</p>';
             }
         }
     });
