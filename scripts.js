@@ -1410,7 +1410,7 @@ function setupScoresPageView() {
     });
 
     scoresClassFilter.addEventListener('change', async () => {
-        const yearId = scoresYearFilter.value;
+        const yearId = scoresClassFilter.value;
         const classId = scoresClassFilter.value;
         scoresExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសការប្រឡង --</option>';
         scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសការប្រឡង។</p>';
@@ -1546,13 +1546,20 @@ function setupScoresPageView() {
             
             const scoresForMonth = {};
             const attendance = {};
-            
+            const subjectGrades = {}; // New object for subject grades
+    
             row.querySelectorAll('.score-input').forEach(input => {
                 const subjectId = input.dataset.subjectId;
-                // Ensure comma is replaced and it's a valid number before saving
                 const scoreValue = parseFloat(input.value.replace(',', '.'));
                 if (!isNaN(scoreValue)) {
                     scoresForMonth[subjectId] = scoreValue;
+    
+                    // Calculate and store grade for saving
+                    const subject = allSubjectsCache.find(s => s.id === subjectId);
+                    if (subject) {
+                        const maxScore = parseFloat(subject.maxScore);
+                        subjectGrades[subjectId] = getSubjectGrade(scoreValue, maxScore);
+                    }
                 }
             });
     
@@ -1577,7 +1584,8 @@ function setupScoresPageView() {
                     average: averageScore,
                     rank: rank,
                     grade: grade,
-                    totalAbsence: totalAbsence
+                    totalAbsence: totalAbsence,
+                    subjectGrades: subjectGrades // Add the subject grades object
                 }
             };
     
@@ -1602,6 +1610,19 @@ function getGrade(average) {
     if (average >= 25) return "E";
     return "F";
 }
+
+// New function to calculate grade for a single subject
+function getSubjectGrade(score, maxScore) {
+    if (maxScore === 0 || maxScore == null || score == null) return "F"; // Avoid division by zero and handle null scores
+    const ratio = score / maxScore;
+    if (ratio >= 0.9) return "A";
+    if (ratio >= 0.8) return "B";
+    if (ratio >= 0.7) return "C";
+    if (ratio >= 0.6) return "D";
+    if (ratio >= 0.5) return "E";
+    return "F";
+}
+
 
 function updateAllRanksAndGrades() {
     const studentRows = Array.from(scoresPageTableContainer.querySelectorAll('tr[data-student-id]'));
@@ -1647,9 +1668,21 @@ function updateStudentScoreSummary(studentId) {
     const totalCoefficient = assignedSubjects.reduce((sum, subject) => sum + (subject.coefficient || 0), 0);
     
     let totalScore = 0;
+    const subjectGradesHtml = []; // Array to hold individual grade spans
+
     studentRow.querySelectorAll('input.score-input').forEach(input => {
         const cleanValue = input.value.replace(',', '.');
-        totalScore += parseFloat(cleanValue) || 0;
+        const score = parseFloat(cleanValue) || 0;
+        totalScore += score;
+
+        // Calculate and store subject grade
+        const subjectId = input.dataset.subjectId;
+        const subject = allSubjectsCache.find(s => s.id === subjectId);
+        if (subject) {
+            const maxScore = parseFloat(subject.maxScore);
+            const grade = getSubjectGrade(score, maxScore);
+            subjectGradesHtml.push(`<span class="font-mono px-1">${grade}</span>`);
+        }
     });
 
     const averageScore = totalCoefficient > 0 ? (totalScore / totalCoefficient) : 0;
@@ -1661,6 +1694,12 @@ function updateStudentScoreSummary(studentId) {
     studentRow.querySelector(`#total-score-${studentId}`).textContent = totalScore.toFixed(2);
     studentRow.querySelector(`#average-score-${studentId}`).textContent = averageScore.toFixed(2);
     studentRow.querySelector(`#total-absence-${studentId}`).textContent = totalAbsence;
+    
+    // Update the subject grades cell
+    const subjectGradesCell = studentRow.querySelector(`#subject-grades-${studentId}`);
+    if (subjectGradesCell) {
+        subjectGradesCell.innerHTML = subjectGradesHtml.join('');
+    }
     
     // After updating one student, we need to re-calculate ranks for everyone
     updateAllRanksAndGrades();
@@ -1719,6 +1758,7 @@ async function generateScoresPageTable() {
                   <th class="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">អ. មានច្បាប់</th>
                   <th class="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">អ. អត់ច្បាប់</th>
                   <th class="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">អ. សរុប</th>
+                  <th class="p-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">និទ្ទេសតាមមុខវិជ្ជា</th>
                   </tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
 
     const isCalculatedField = selectedKey.includes('month_exam') || selectedKey.includes('report') || selectedKey.includes('result');
@@ -1778,6 +1818,7 @@ async function generateScoresPageTable() {
                       <td class="p-1"><input type="number" class="absence-input w-20 p-2 border-gray-300 rounded-md text-center" data-type="p" data-row="${studentIndex}" data-col="${subjectColIndex}" data-student-id="${student.id}" value="${absenceP}"></td>
                       <td class="p-1"><input type="number" class="absence-input w-20 p-2 border-gray-300 rounded-md text-center" data-type="up" data-row="${studentIndex}" data-col="${subjectColIndex + 1}" data-student-id="${student.id}" value="${absenceUp}"></td>
                       <td id="total-absence-${student.id}" class="p-3 font-bold text-center align-middle">0</td>
+                      <td id="subject-grades-${student.id}" class="p-3 text-center align-middle text-xs whitespace-nowrap"></td>
                       </tr>`;
     });
     tableHtml += '</tbody></table>';
