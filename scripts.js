@@ -271,25 +271,26 @@ function populateYearFilterDropdown() {
     settingsYearSelect.innerHTML = yearOptionsHtml;
     scoresYearFilter.innerHTML = yearOptionsHtml;
     subjectYearFilter.innerHTML = yearOptionsHtml; 
-    chartYearFilter.innerHTML = yearOptionsHtml; // Populate chart filter
-}
+    classYearFilter.innerHTML = yearOptionsHtml;
+    chartYearFilter.innerHTML = yearOptionsHtml;
 
-function populateClassYearFilter() {
-    classYearFilter.innerHTML = ''; // Clear existing options
-    const sortedYears = [...allYearsCache].sort((a,b) => b.startYear - a.startYear);
-    if (sortedYears.length === 0) {
-         classYearFilter.innerHTML = '<option value="">មិនមានឆ្នាំសិក្សា</option>';
-         return;
-    }
-    sortedYears.forEach(year => {
-        const option = document.createElement('option');
-        option.value = year.id;
-        option.textContent = year.name;
-        classYearFilter.appendChild(option);
-    });
-    // Default to the latest year (which is the first after sorting)
-    if (sortedYears.length > 0) {
-        classYearFilter.value = sortedYears[0].id;
+    // Smart Default: Select the latest year
+    const latestYearId = sortedYears[0]?.id;
+    if (latestYearId) {
+        studentYearFilter.value = latestYearId;
+        settingsYearSelect.value = latestYearId;
+        scoresYearFilter.value = latestYearId;
+        subjectYearFilter.value = latestYearId;
+        classYearFilter.value = latestYearId;
+        chartYearFilter.value = latestYearId;
+
+        // Manually trigger change events to populate dependent dropdowns
+        studentYearFilter.dispatchEvent(new Event('change'));
+        classYearFilter.dispatchEvent(new Event('change'));
+        scoresYearFilter.dispatchEvent(new Event('change'));
+        subjectYearFilter.dispatchEvent(new Event('change'));
+        settingsYearSelect.dispatchEvent(new Event('change'));
+        chartYearFilter.dispatchEvent(new Event('change'));
     }
 }
 
@@ -407,11 +408,7 @@ function subscribeToYears() {
         allYearsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         document.getElementById('stats-years').textContent = allYearsCache.length;
         renderList(container, allYearsCache.sort((a,b) => b.startYear - a.startYear), renderYearItem, "មិនទាន់មានឆ្នាំសិក្សា");
-        populateYearFilterDropdown();
-        populateClassYearFilter();
-        filterAndRenderStudents(); 
-        filterAndRenderClasses();
-        renderStudentGenderChart(); // Update chart when years load
+        populateYearFilterDropdown(); // This will now handle smart defaults
     });
     unsubscribeListeners.push(unsubscribe);
 }
@@ -1406,11 +1403,17 @@ function setupScoresPageView() {
             classesInYear.forEach(c => {
                 scoresClassFilter.innerHTML += `<option value="${c.id}">${c.className}</option>`;
             });
+
+            // Smart Default: Select the first class
+            if (classesInYear.length > 0) {
+                scoresClassFilter.value = classesInYear[0].id;
+                scoresClassFilter.dispatchEvent(new Event('change'));
+            }
         }
     });
 
     scoresClassFilter.addEventListener('change', async () => {
-        const yearId = scoresYearFilter.value; // FIX: Was using scoresClassFilter.value
+        const yearId = scoresYearFilter.value; 
         const classId = scoresClassFilter.value;
         scoresExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសការប្រឡង --</option>';
         scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសការប្រឡង។</p>';
@@ -1439,6 +1442,9 @@ function setupScoresPageView() {
                 
                 if (scoreEntryOptions.length > 0) {
                      scoresExamFilter.innerHTML += scoreEntryOptions.map(opt => `<option value="${opt.key}">${opt.name}</option>`).join('');
+                     // Smart Default: Select the first exam
+                     scoresExamFilter.value = scoreEntryOptions[0].key;
+                     scoresExamFilter.dispatchEvent(new Event('change'));
                 } else {
                      scoresExamFilter.innerHTML = '<option value="">-- មិនមានការប្រឡងถูกกำหนด --</option>';
                      scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមចូលទៅកាន់ទំព័រ "កំណត់" เพื่อกำหนดเดือนสอบสำหรับปีการศึกษานี้។</p>';
