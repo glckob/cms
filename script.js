@@ -301,9 +301,9 @@ function populateClassYearFilter() {
 }
 
 /**
- * NEW: Sets the default year on all relevant filter dropdowns.
+ * Sets the default year on all relevant filter dropdowns.
  * Automatically selects the latest academic year and triggers change events
- * to update dependent dropdowns, except for the score entry page.
+ * to update dependent dropdowns.
  */
 function setDefaultFilters() {
     if (allYearsCache.length === 0) return;
@@ -318,7 +318,8 @@ function setDefaultFilters() {
         rankingsYearFilter,
         studentYearFilter,
         subjectYearFilter,
-        settingsYearSelect
+        settingsYearSelect,
+        scoresYearFilter // Now includes the scores page filter
     ];
 
     yearFiltersToUpdate.forEach(filterElement => {
@@ -331,13 +332,6 @@ function setDefaultFilters() {
             }
         }
     });
-
-    // Special handling for the scores page to ensure it's reset to placeholder
-    if (scoresYearFilter) {
-        scoresYearFilter.value = ""; // Explicitly set to the placeholder
-        // Trigger change to clear dependent filters on the scores page
-        scoresYearFilter.dispatchEvent(new Event('change'));
-    }
 }
 
 
@@ -1448,6 +1442,7 @@ async function generateScoreTable() {
 function setupScoresPageView() {
     scoresYearFilter.addEventListener('change', () => {
         const yearId = scoresYearFilter.value;
+        // Clear dependent dropdowns
         scoresClassFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសថ្នាក់ --</option>';
         scoresExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសការប្រឡង --</option>';
         scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសថ្នាក់ និងការប្រឡង។</p>';
@@ -1461,12 +1456,19 @@ function setupScoresPageView() {
             classesInYear.forEach(c => {
                 scoresClassFilter.innerHTML += `<option value="${c.id}">${c.className}</option>`;
             });
+
+            // Automatically select the first class if available
+            if (classesInYear.length > 0) {
+                scoresClassFilter.value = classesInYear[0].id;
+                scoresClassFilter.dispatchEvent(new Event('change'));
+            }
         }
     });
 
     scoresClassFilter.addEventListener('change', async () => {
         const yearId = scoresYearFilter.value;
         const classId = scoresClassFilter.value;
+        // Clear dependent dropdown
         scoresExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសការប្រឡង --</option>';
         scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសការប្រឡង។</p>';
         saveScoresPageBtn.classList.add('hidden');
@@ -1474,9 +1476,9 @@ function setupScoresPageView() {
         if (yearId && classId) {
             const settingsRef = doc(db, `artifacts/${appId}/users/${userId}/settings`, yearId);
             const docSnap = await getDoc(settingsRef);
+            let scoreEntryOptions = [];
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const scoreEntryOptions = [];
                 if (data.startOfYearTestName) scoreEntryOptions.push({ key: 'start_year_test', name: data.startOfYearTestName });
                 if (data.semester1) {
                     for (let i = 1; i <= 6; i++) { if (data.semester1[`month${i}`]) scoreEntryOptions.push({ key: `sem1_month_${i}`, name: data.semester1[`month${i}`] }); }
@@ -1493,6 +1495,12 @@ function setupScoresPageView() {
                 if (data.endOfYearResultName) scoreEntryOptions.push({ key: 'end_year_result', name: data.endOfYearResultName });
                 
                 scoresExamFilter.innerHTML += scoreEntryOptions.map(opt => `<option value="${opt.key}">${opt.name}</option>`).join('');
+            }
+            
+            // Automatically select the first exam if available
+            if (scoreEntryOptions.length > 0) {
+                scoresExamFilter.value = scoreEntryOptions[0].key;
+                scoresExamFilter.dispatchEvent(new Event('change'));
             }
         }
     });
