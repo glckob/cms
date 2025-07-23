@@ -82,6 +82,12 @@ const scoresClassFilter = document.getElementById('scores-class-filter');
 const scoresExamFilter = document.getElementById('scores-exam-filter');
 const scoresPageTableContainer = document.getElementById('scores-page-table-container');
 const saveScoresPageBtn = document.getElementById('save-scores-page-btn');
+// Results Page elements
+const resultsYearFilter = document.getElementById('results-year-filter');
+const resultsClassFilter = document.getElementById('results-class-filter');
+const resultsExamFilter = document.getElementById('results-exam-filter');
+const resultsTableContainer = document.getElementById('results-table-container');
+const printResultsBtn = document.getElementById('print-results-btn');
 
 // --- UTILITY & NAVIGATION FUNCTIONS ---
 function showToast(message, isError = false) { const toast = document.getElementById('toast-notification'); const toastMessage = document.getElementById('toast-message'); toastMessage.textContent = message; toast.className = `toast max-w-xs text-white p-4 rounded-lg shadow-lg ${isError ? 'bg-red-600' : 'bg-green-600'} show`; setTimeout(() => { toast.classList.remove('show'); }, 3000); }
@@ -274,6 +280,7 @@ function populateYearFilterDropdown() {
     subjectYearFilter.innerHTML = yearOptionsHtml; 
     classYearFilter.innerHTML = yearOptionsHtml;
     chartYearFilter.innerHTML = yearOptionsHtml;
+    resultsYearFilter.innerHTML = yearOptionsHtml; // Populate new results dropdown
 
     // Smart Default: Select the latest year for all dropdowns EXCEPT scoresYearFilter
     const latestYearId = sortedYears[0]?.id;
@@ -284,6 +291,7 @@ function populateYearFilterDropdown() {
         subjectYearFilter.value = latestYearId;
         classYearFilter.value = latestYearId;
         chartYearFilter.value = latestYearId;
+        resultsYearFilter.value = latestYearId;
         
         // Reset scores page year filter to default placeholder
         scoresYearFilter.value = ""; 
@@ -294,6 +302,7 @@ function populateYearFilterDropdown() {
         subjectYearFilter.dispatchEvent(new Event('change'));
         settingsYearSelect.dispatchEvent(new Event('change'));
         chartYearFilter.dispatchEvent(new Event('change'));
+        resultsYearFilter.dispatchEvent(new Event('change'));
         
         // Also need to clear the dependent dropdowns on the scores page since no year is selected
         scoresClassFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសថ្នាក់ --</option>';
@@ -2096,6 +2105,7 @@ function setupEventListeners() {
     });
 
     setupScoresPageView(); // Initialize new page listeners
+    setupResultsPageView(); // Initialize new results page listeners
 }
 
 // --- MAIN APP START ---
