@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Get Firebase Realtime Data</title>
+</head>
+<body>
+  <h2>Users Data from Firebase</h2>
+  <pre id="output">Loading...</pre>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.24.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.24.0/firebase-database-compat.js"></script>
+
+  <script>
+    // ✅ Your Firebase config (replace with your actual values)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDVxxxxxxpU",
+      authDomain: "fir-auth-xxxx.firebaseapp.com",
+      databaseURL: "https://fir-auth-xxxx-default-rtdb.firebaseio.com", // ✅ Required for Realtime DB
+      projectId: "fir-auth-xxxx",
+      storageBucket: "fir-auth-xxxx.appspot.com",
+      messagingSenderId: "999888xxxxx",
+      appId: "1:999888xxxxx:web:abcd1234efgh5678"
+    };
+
+    // ✅ Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // ✅ Read data from path "users/"
+    const output = document.getElementById("output");
+    const usersRef = database.ref("users");
+
+    usersRef.on("value", (snapshot) => {
+      const data = snapshot.val();
+      output.textContent = JSON.stringify(data, null, 2); // format nicely
+    }, (error) => {
+      output.textContent = "Error reading data: " + error;
+    });
+  </script>
+</body>
+</html>
