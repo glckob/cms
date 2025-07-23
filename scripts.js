@@ -82,11 +82,6 @@ const scoresClassFilter = document.getElementById('scores-class-filter');
 const scoresExamFilter = document.getElementById('scores-exam-filter');
 const scoresPageTableContainer = document.getElementById('scores-page-table-container');
 const saveScoresPageBtn = document.getElementById('save-scores-page-btn');
-// Results Page elements
-const resultsYearFilter = document.getElementById('results-year-filter');
-const resultsClassFilter = document.getElementById('results-class-filter');
-const resultsExamFilter = document.getElementById('results-exam-filter');
-const resultsTableContainer = document.getElementById('results-table-container');
 
 // --- UTILITY & NAVIGATION FUNCTIONS ---
 function showToast(message, isError = false) { const toast = document.getElementById('toast-notification'); const toastMessage = document.getElementById('toast-message'); toastMessage.textContent = message; toast.className = `toast max-w-xs text-white p-4 rounded-lg shadow-lg ${isError ? 'bg-red-600' : 'bg-green-600'} show`; setTimeout(() => { toast.classList.remove('show'); }, 3000); }
@@ -279,7 +274,6 @@ function populateYearFilterDropdown() {
     subjectYearFilter.innerHTML = yearOptionsHtml; 
     classYearFilter.innerHTML = yearOptionsHtml;
     chartYearFilter.innerHTML = yearOptionsHtml;
-    resultsYearFilter.innerHTML = yearOptionsHtml; // Populate new results dropdown
 
     // Smart Default: Select the latest year for all dropdowns EXCEPT scoresYearFilter
     const latestYearId = sortedYears[0]?.id;
@@ -290,7 +284,6 @@ function populateYearFilterDropdown() {
         subjectYearFilter.value = latestYearId;
         classYearFilter.value = latestYearId;
         chartYearFilter.value = latestYearId;
-        resultsYearFilter.value = latestYearId;
         
         // Reset scores page year filter to default placeholder
         scoresYearFilter.value = ""; 
@@ -301,12 +294,11 @@ function populateYearFilterDropdown() {
         subjectYearFilter.dispatchEvent(new Event('change'));
         settingsYearSelect.dispatchEvent(new Event('change'));
         chartYearFilter.dispatchEvent(new Event('change'));
-        resultsYearFilter.dispatchEvent(new Event('change'));
         
         // Also need to clear the dependent dropdowns on the scores page since no year is selected
         scoresClassFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសថ្នាក់ --</option>';
         scoresExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសការប្រឡង --</option>';
-        scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសឆ្នាំសិក្សាเพื่อเริ่ม</p>';
+        scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសឆ្នាំសិក្សាដើម្បីចាប់ផ្តើម។</p>';
         saveScoresPageBtn.classList.add('hidden');
     }
 }
@@ -314,7 +306,7 @@ function populateYearFilterDropdown() {
 
 function populateClassFilterDropdown() {
     const selectedYearId = studentYearFilter.value;
-    studentClassFilter.innerHTML = '<option value="">-- ថ្នាក់ทั้งหมด --</option><option value="unassigned" class="text-red-600 font-medium">-- សិស្សមិនបានចាត់ថ្នាក់ --</option>';
+    studentClassFilter.innerHTML = '<option value="">-- ថ្នាក់ទាំងអស់ --</option><option value="unassigned" class="text-red-600 font-medium">-- សិស្សមិនបានចាត់ថ្នាក់ --</option>';
 
     if (selectedYearId) {
         const classesInYear = allClassesCache
@@ -1877,158 +1869,66 @@ async function generateScoresPageTable() {
     });
 }
 
-// --- NEW RESULTS PAGE LOGIC ---
-
-function setupResultsPageView() {
-    resultsYearFilter.addEventListener('change', () => {
-        const yearId = resultsYearFilter.value;
-        resultsClassFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសថ្នាក់ --</option>';
-        resultsExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសលទ្ធផល --</option>';
-        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសថ្នាក់ และលទ្ធផល។</p>';
-
-        if (yearId) {
-            const classesInYear = allClassesCache
-                .filter(c => c.academicYearId === yearId)
-                .sort((a, b) => a.className.localeCompare(b.className));
-            
-            classesInYear.forEach(c => {
-                resultsClassFilter.innerHTML += `<option value="${c.id}">${c.className}</option>`;
-            });
-
-            if (classesInYear.length > 0) {
-                resultsClassFilter.value = classesInYear[0].id;
-                resultsClassFilter.dispatchEvent(new Event('change'));
-            }
-        }
-    });
-
-    resultsClassFilter.addEventListener('change', async () => {
-        const yearId = resultsYearFilter.value;
-        const classId = resultsClassFilter.value;
-        resultsExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសលទ្ធផល --</option>';
-        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសលទ្ធផល។</p>';
-
-        if (yearId && classId) {
-            const settingsRef = doc(db, `artifacts/${appId}/users/${userId}/settings`, yearId);
-            const docSnap = await getDoc(settingsRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                const resultOptions = [];
-                if (data.semester1?.reportName) resultOptions.push({ key: 'sem1_report', name: data.semester1.reportName });
-                if (data.semester2?.reportName) resultOptions.push({ key: 'sem2_report', name: data.semester2.reportName });
-                if (data.endOfYearResultName) resultOptions.push({ key: 'end_year_result', name: data.endOfYearResultName });
-
-                if (resultOptions.length > 0) {
-                    resultsExamFilter.innerHTML += resultOptions.map(opt => `<option value="${opt.key}">${opt.name}</option>`).join('');
-                    resultsExamFilter.value = resultOptions[0].key;
-                    resultsExamFilter.dispatchEvent(new Event('change'));
-                } else {
-                    resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">មិនមានលទ្ធផលถูกกำหนดសម្រាប់ปีការศึกษានេះទេ។</p>';
-                }
-            }
-        }
-    });
-
-    resultsExamFilter.addEventListener('change', generateResultsTable);
-}
-
-async function generateResultsTable() {
-    const classId = resultsClassFilter.value;
-    const selectedKey = resultsExamFilter.value;
-
-    if (!classId || !selectedKey) {
-        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសឲ្យបានពេញលេញ។</p>';
+function exportToExcel() {
+    const selectedYearId = studentYearFilter.value;
+    if (!selectedYearId) {
+        showToast('សូមជ្រើសរើសឆ្នាំសិក្សាដើម្បីនាំចេញទិន្នន័យ។', true);
         return;
     }
 
-    resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">កំពុងទាញយកទិន្នន័យលទ្ធផល...</p>';
+    const selectedYear = allYearsCache.find(y => y.id === selectedYearId);
+    const selectedClass = allClassesCache.find(c => c.id === studentClassFilter.value);
+    const searchTerm = studentSearchInput.value.toLowerCase();
 
-    const selectedClass = allClassesCache.find(c => c.id === classId);
-    if (!selectedClass) return;
-
-    const assignedSubjectIds = selectedClass.subjectIds || [];
-    const assignedSubjects = allSubjectsCache
-        .filter(s => assignedSubjectIds.includes(s.id))
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
-
-    const assignedStudentIds = selectedClass.studentIds || [];
-    const assignedStudents = allStudentsCache
-        .filter(s => assignedStudentIds.includes(s.id))
-        .sort((a, b) => a.name.localeCompare(b.name, 'km'));
-
-    if (assignedStudents.length === 0) {
-        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">មិនមានសិស្សនៅក្នុងថ្នាក់នេះទេ។</p>';
-        return;
-    }
-
-    const scorePromises = assignedStudents.map(student => getDoc(doc(db, `artifacts/${appId}/users/${userId}/classes/${classId}/scores`, student.id)));
-    const scoreSnapshots = await Promise.all(scorePromises);
+    const classesInYear = allClassesCache.filter(c => c.academicYearId === selectedYearId);
+    let studentIdsInYear = classesInYear.flatMap(c => c.studentIds || []);
     
-    const studentResultsData = scoreSnapshots.map(snap => {
-        const studentId = snap.id;
-        const studentInfo = allStudentsCache.find(s => s.id === studentId);
-        const scoreData = snap.exists() ? snap.data()[selectedKey] : null;
+    if (selectedClass) {
+        studentIdsInYear = selectedClass.studentIds || [];
+    }
+
+    let studentsToExport = allStudentsCache.filter(s => studentIdsInYear.includes(s.id));
+
+    if (searchTerm) {
+        studentsToExport = studentsToExport.filter(student => {
+            const studentClass = allClassesCache.find(c => c.studentIds?.includes(student.id));
+            let className = studentClass ? studentClass.className.toLowerCase() : '';
+            return (
+                student.studentId.toLowerCase().includes(searchTerm) ||
+                student.name.toLowerCase().includes(searchTerm) ||
+                student.gender.toLowerCase().includes(searchTerm) ||
+                (student.dob && student.dob.toLowerCase().includes(searchTerm)) ||
+                (student.phone && student.phone.toLowerCase().includes(searchTerm)) ||
+                className.includes(searchTerm)
+            );
+        });
+    }
+
+    if (studentsToExport.length === 0) {
+        showToast('គ្មានទិន្នន័យសិស្សសម្រាប់នាំចេញទេ។', true);
+        return;
+    }
+
+    const dataForSheet = studentsToExport.map((student, index) => {
+        const studentClass = allClassesCache.find(c => c.studentIds?.includes(student.id));
         return {
-            ...studentInfo,
-            scoreData: scoreData
+            'ល.រ': index + 1,
+            'អត្តលេខសិស្ស': student.studentId,
+            'ឈ្មោះសិស្ស': student.name,
+            'ភេទ': student.gender,
+            'ថ្នាក់': studentClass ? studentClass.className : 'N/A',
+            'ថ្ងៃខែឆ្នាំកំណើត': student.dob || '',
+            'លេខទូរស័ព្ទ': student.phone || ''
         };
-    }).filter(s => s.scoreData && s.scoreData.summary); // Only include students with summary data for the selected exam
-
-    // Sort students by rank
-    studentResultsData.sort((a, b) => (a.scoreData.summary.rank || 999) - (b.scoreData.summary.rank || 999));
-
-    if (studentResultsData.length === 0) {
-        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">មិនមានទិន្នន័យពិន្ទុសម្រាប់លទ្ធផលដែលបានជ្រើសរើស។</p>';
-        return;
-    }
-
-    let tableHtml = `<table class="min-w-full divide-y divide-gray-200 text-sm"><thead><tr>
-                        <th class="p-2 text-left font-medium text-gray-500 uppercase tracking-wider sticky top-0 left-0 bg-gray-50 z-30">ល.រ</th>
-                        <th class="p-2 text-left font-medium text-gray-500 uppercase tracking-wider sticky top-0 left-0 bg-gray-50 z-30">ឈ្មោះសិស្ស</th>`;
-    
-    assignedSubjects.forEach(subject => {
-        tableHtml += `<th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">${subject.name}</th>`;
     });
 
-    tableHtml += `<th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">ពិន្ទុសរុប</th>
-                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">មធ្យមភាគ</th>
-                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">ចំណាត់ថ្នាក់</th>
-                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">និទ្ទេស</th>
-                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">អ. សរុប</th>
-                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">និទ្ទេសតាមមុខវិជ្ជា</th>
-                  </tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
+    const worksheet = XLSX.utils.json_to_sheet(dataForSheet);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'បញ្ជីឈ្មោះសិស្ស');
 
-    studentResultsData.forEach((student, index) => {
-        const summary = student.scoreData.summary || {};
-        const scores = student.scoreData.scores || {};
-        const subjectGrades = summary.subjectGrades || {};
-
-        tableHtml += `<tr class="hover:bg-gray-50">
-                        <td class="p-2 whitespace-nowrap sticky left-0 bg-white z-10">${index + 1}</td>
-                        <td class="p-2 whitespace-nowrap sticky left-0 bg-white z-10 font-medium">${student.name}</td>`;
-
-        assignedSubjects.forEach(subject => {
-            tableHtml += `<td class="p-2 text-center">${scores[subject.id]?.toFixed(2) || '-'}</td>`;
-        });
-
-        tableHtml += `<td class="p-2 text-center font-bold">${summary.totalScore?.toFixed(2) || '-'}</td>
-                      <td class="p-2 text-center font-bold">${summary.average?.toFixed(2) || '-'}</td>
-                      <td class="p-2 text-center font-bold text-blue-600">${summary.rank || '-'}</td>
-                      <td class="p-2 text-center font-bold text-green-600">${summary.grade || '-'}</td>
-                      <td class="p-2 text-center">${summary.totalAbsence ?? '-'}</td>
-                      <td class="p-2 text-center text-xs whitespace-nowrap">`;
-        
-        assignedSubjects.forEach(subject => {
-            tableHtml += `<span class="font-mono px-1">${subjectGrades[subject.id] || ''}</span>`;
-        });
-
-        tableHtml += `</td></tr>`;
-    });
-
-    tableHtml += `</tbody></table>`;
-    resultsTableContainer.innerHTML = tableHtml;
+    const fileName = `បញ្ជីសិស្ស_${selectedYear.name}${selectedClass ? '_' + selectedClass.className : ''}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
 }
-
 
 // --- EVENT LISTENERS (STABLE SETUP) ---
 function setupEventListeners() {
@@ -2196,7 +2096,6 @@ function setupEventListeners() {
     });
 
     setupScoresPageView(); // Initialize new page listeners
-    setupResultsPageView(); // Initialize new results page listeners
 }
 
 // --- MAIN APP START ---
