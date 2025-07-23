@@ -4,7 +4,9 @@ import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWith
 import { getFirestore, collection, doc, addDoc, getDocs, onSnapshot, setDoc, deleteDoc, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- CONFIGURATION ---
-// Reverted to the original hardcoded Firebase config to ensure connectivity.
+// !!! សំខាន់ !!!
+// សូមប្រាកដថាค่าเหล่านี้ตรงกับการตั้งค่าโปรเจกต์ Firebase ของคุณ
+// ค่าที่ไม่ถูกต้องនៅទីនេះគឺជាสาเหตุទូទៅនៃปัญหาการเข้าสู่ระบบ/การยืนยันตัวตน
 const firebaseConfig = {
     apiKey: "AIzaSyCOo5oxLfCCxNAd78vGEruoPm2ng-7Etmg",
     authDomain: "glckob.firebaseapp.com",
@@ -277,9 +279,9 @@ function populateYearFilterDropdown() {
     studentYearFilter.innerHTML = yearOptionsHtml;
     settingsYearSelect.innerHTML = yearOptionsHtml;
     scoresYearFilter.innerHTML = yearOptionsHtml;
-    rankingsYearFilter.innerHTML = yearOptionsHtml; // New
+    rankingsYearFilter.innerHTML = yearOptionsHtml;
     subjectYearFilter.innerHTML = yearOptionsHtml; 
-    chartYearFilter.innerHTML = yearOptionsHtml; // Populate chart filter
+    chartYearFilter.innerHTML = yearOptionsHtml;
 }
 
 function populateClassYearFilter() {
@@ -295,11 +297,49 @@ function populateClassYearFilter() {
         option.textContent = year.name;
         classYearFilter.appendChild(option);
     });
-    // Default to the latest year (which is the first after sorting)
-    if (sortedYears.length > 0) {
-        classYearFilter.value = sortedYears[0].id;
+    // The default selection will be handled by setDefaultFilters()
+}
+
+/**
+ * NEW: Sets the default year on all relevant filter dropdowns.
+ * Automatically selects the latest academic year and triggers change events
+ * to update dependent dropdowns, except for the score entry page.
+ */
+function setDefaultFilters() {
+    if (allYearsCache.length === 0) return;
+
+    // The cache is already sorted descending in subscribeToYears
+    const latestYearId = allYearsCache[0].id;
+
+    // List of year filter elements to update
+    const yearFiltersToUpdate = [
+        chartYearFilter,
+        classYearFilter,
+        rankingsYearFilter,
+        studentYearFilter,
+        subjectYearFilter,
+        settingsYearSelect
+    ];
+
+    yearFiltersToUpdate.forEach(filterElement => {
+        if (filterElement) {
+            // Check if the latestYearId is a valid option before setting it
+            if (filterElement.querySelector(`option[value="${latestYearId}"]`)) {
+                filterElement.value = latestYearId;
+                // Trigger the change event to update dependent dropdowns
+                filterElement.dispatchEvent(new Event('change'));
+            }
+        }
+    });
+
+    // Special handling for the scores page to ensure it's reset to placeholder
+    if (scoresYearFilter) {
+        scoresYearFilter.value = ""; // Explicitly set to the placeholder
+        // Trigger change to clear dependent filters on the scores page
+        scoresYearFilter.dispatchEvent(new Event('change'));
     }
 }
+
 
 function populateClassFilterDropdown() {
     const selectedYearId = studentYearFilter.value;
@@ -333,8 +373,9 @@ function renderStudentGenderChart() {
     }
 
     if (!selectedYearId || allStudentsCache.length === 0) {
-        studentGenderChartCanvas.getContext('2d').clearRect(0, 0, studentGenderChartCanvas.width, studentGenderChartCanvas.height);
-        // Optionally show a message
+        if (studentGenderChartCanvas.getContext) {
+            studentGenderChartCanvas.getContext('2d').clearRect(0, 0, studentGenderChartCanvas.width, studentGenderChartCanvas.height);
+        }
         return;
     }
 
@@ -414,12 +455,18 @@ function subscribeToYears() {
     const unsubscribe = onSnapshot(collectionRef, (snapshot) => {
         allYearsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         document.getElementById('stats-years').textContent = allYearsCache.length;
-        renderList(container, allYearsCache.sort((a,b) => b.startYear - a.startYear), renderYearItem, "មិនទាន់មានឆ្នាំសិក្សា");
+        
+        // Sort here once for consistency across the app
+        allYearsCache.sort((a,b) => b.startYear - a.startYear);
+
+        renderList(container, allYearsCache, renderYearItem, "មិនទាន់មានឆ្នាំសិក្សា");
+        
+        // Populate all dropdowns with options first
         populateYearFilterDropdown();
         populateClassYearFilter();
-        filterAndRenderStudents(); 
-        filterAndRenderClasses();
-        renderStudentGenderChart(); // Update chart when years load
+        
+        // NOW, set the default selections and trigger updates
+        setDefaultFilters();
     });
     unsubscribeListeners.push(unsubscribe);
 }
@@ -1511,7 +1558,7 @@ function setupScoresPageView() {
             showToast('មានបញ្ហា សូមព្យាយាមម្តងទៀត', true);
             return;
         }
-    
+
         const batch = writeBatch(db);
         const scoreRows = scoresPageTableContainer.querySelectorAll('tr[data-student-id]');
         
@@ -1520,34 +1567,25 @@ function setupScoresPageView() {
             const scoreDocRef = doc(db, `artifacts/${appId}/users/${userId}/classes/${classId}/scores`, studentId);
             
             const scoresForMonth = {};
+            const attendance = {};
+            
             row.querySelectorAll('.score-input').forEach(input => {
                 const subjectId = input.dataset.subjectId;
                 const scoreValue = input.value;
                 if (scoreValue !== '') scoresForMonth[subjectId] = parseFloat(scoreValue);
             });
-    
-            const attendance = {};
+
             const absenceP = row.querySelector('input.absence-input[data-type="p"]');
             const absenceUp = row.querySelector('input.absence-input[data-type="up"]');
             if (absenceP.value) attendance.withPermission = parseInt(absenceP.value);
             if (absenceUp.value) attendance.withoutPermission = parseInt(absenceUp.value);
-    
-            // Get summary data from the table cells
-            const summary = {
-                totalScore: parseFloat(row.querySelector(`#total-score-${studentId}`).textContent) || 0,
-                average: parseFloat(row.querySelector(`#average-score-${studentId}`).textContent) || 0,
-                rank: parseInt(row.querySelector(`#rank-${studentId}`).textContent) || 0,
-                grade: row.querySelector(`#grade-${studentId}`).textContent || 'N/A',
-                totalAbsence: parseInt(row.querySelector(`#total-absence-${studentId}`).textContent) || 0,
-            };
-    
+
             const updatePayload = {};
             updatePayload[selectedKey] = {
                 scores: scoresForMonth,
-                attendance: attendance,
-                summary: summary // Add summary object to the payload
+                attendance: attendance
             };
-    
+
             batch.set(scoreDocRef, updatePayload, { merge: true });
         }
         
@@ -1720,37 +1758,25 @@ async function generateScoresPageTable() {
 
         const examData = studentScoresMap[student.id]?.[selectedKey] || {};
         const attendanceData = examData.attendance || {};
-        const summaryData = examData.summary || {}; // Get summary data
-
         const absenceP = attendanceData.withPermission || '';
         const absenceUp = attendanceData.withoutPermission || '';
 
-        // Use saved summary data if available, otherwise use defaults
-        const totalScore = summaryData.totalScore ? summaryData.totalScore.toFixed(2) : '0.00';
-        const averageScore = summaryData.average ? summaryData.average.toFixed(2) : '0.00';
-        const rank = summaryData.rank || '';
-        const grade = summaryData.grade || '';
-        const totalAbsence = summaryData.totalAbsence !== undefined ? summaryData.totalAbsence : (parseInt(absenceP || 0) + parseInt(absenceUp || 0));
-
-
-        tableHtml += `<td id="total-score-${student.id}" class="p-3 font-bold text-center align-middle">${totalScore}</td>
-                      <td id="average-score-${student.id}" class="p-3 font-bold text-center align-middle">${averageScore}</td>
-                      <td id="rank-${student.id}" class="p-3 font-bold text-center align-middle text-blue-600">${rank}</td>
-                      <td id="grade-${student.id}" class="p-3 font-bold text-center align-middle text-green-600">${grade}</td>
+        tableHtml += `<td id="total-score-${student.id}" class="p-3 font-bold text-center align-middle">0.00</td>
+                      <td id="average-score-${student.id}" class="p-3 font-bold text-center align-middle">0.00</td>
+                      <td id="rank-${student.id}" class="p-3 font-bold text-center align-middle text-blue-600"></td>
+                      <td id="grade-${student.id}" class="p-3 font-bold text-center align-middle text-green-600"></td>
                       <td class="p-1"><input type="number" class="absence-input w-20 p-2 border-gray-300 rounded-md text-center" data-type="p" data-row="${studentIndex}" data-col="${subjectColIndex}" data-student-id="${student.id}" value="${absenceP}"></td>
                       <td class="p-1"><input type="number" class="absence-input w-20 p-2 border-gray-300 rounded-md text-center" data-type="up" data-row="${studentIndex}" data-col="${subjectColIndex + 1}" data-student-id="${student.id}" value="${absenceUp}"></td>
-                      <td id="total-absence-${student.id}" class="p-3 font-bold text-center align-middle">${totalAbsence}</td>
+                      <td id="total-absence-${student.id}" class="p-3 font-bold text-center align-middle">0</td>
                       </tr>`;
     });
     tableHtml += '</tbody></table>';
     scoresPageTableContainer.innerHTML = tableHtml;
     
-    // Initial calculation for all students if no summary data is loaded
-    if (Object.keys(studentScoresMap).length === 0 || !studentScoresMap[assignedStudents[0].id]?.[selectedKey]?.summary) {
-        assignedStudents.forEach(student => {
-            updateStudentScoreSummary(student.id);
-        });
-    }
+    // Initial calculation for all students
+    assignedStudents.forEach(student => {
+        updateStudentScoreSummary(student.id);
+    });
 }
 
 // --- NEW RANKINGS PAGE LOGIC ---
