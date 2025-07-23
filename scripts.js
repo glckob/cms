@@ -307,7 +307,7 @@ function populateYearFilterDropdown() {
         // Also need to clear the dependent dropdowns on the scores page since no year is selected
         scoresClassFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសថ្នាក់ --</option>';
         scoresExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសការប្រឡង --</option>';
-        scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសឆ្នាំសិក្សាដើម្បីចាប់ផ្តើម។</p>';
+        scoresPageTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសឆ្នាំសិក្សាเพื่อเริ่ม</p>';
         saveScoresPageBtn.classList.add('hidden');
     }
 }
@@ -315,7 +315,7 @@ function populateYearFilterDropdown() {
 
 function populateClassFilterDropdown() {
     const selectedYearId = studentYearFilter.value;
-    studentClassFilter.innerHTML = '<option value="">-- ថ្នាក់ទាំងអស់ --</option><option value="unassigned" class="text-red-600 font-medium">-- សិស្សមិនបានចាត់ថ្នាក់ --</option>';
+    studentClassFilter.innerHTML = '<option value="">-- ថ្នាក់ทั้งหมด --</option><option value="unassigned" class="text-red-600 font-medium">-- សិស្សមិនបានចាត់ថ្នាក់ --</option>';
 
     if (selectedYearId) {
         const classesInYear = allClassesCache
@@ -1878,66 +1878,79 @@ async function generateScoresPageTable() {
     });
 }
 
-function exportToExcel() {
-    const selectedYearId = studentYearFilter.value;
-    if (!selectedYearId) {
-        showToast('សូមជ្រើសរើសឆ្នាំសិក្សាដើម្បីនាំចេញទិន្នន័យ។', true);
-        return;
-    }
+// --- NEW RESULTS PAGE LOGIC ---
 
-    const selectedYear = allYearsCache.find(y => y.id === selectedYearId);
-    const selectedClass = allClassesCache.find(c => c.id === studentClassFilter.value);
-    const searchTerm = studentSearchInput.value.toLowerCase();
+function setupResultsPageView() {
+    resultsYearFilter.addEventListener('change', () => {
+        const yearId = resultsYearFilter.value;
+        resultsClassFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសថ្នាក់ --</option>';
+        resultsExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសលទ្ធផល --</option>';
+        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសថ្នាក់ และលទ្ធផល។</p>';
+        printResultsBtn.classList.add('hidden');
 
-    const classesInYear = allClassesCache.filter(c => c.academicYearId === selectedYearId);
-    let studentIdsInYear = classesInYear.flatMap(c => c.studentIds || []);
-    
-    if (selectedClass) {
-        studentIdsInYear = selectedClass.studentIds || [];
-    }
+        if (yearId) {
+            const classesInYear = allClassesCache
+                .filter(c => c.academicYearId === yearId)
+                .sort((a, b) => a.className.localeCompare(b.className));
+            
+            classesInYear.forEach(c => {
+                resultsClassFilter.innerHTML += `<option value="${c.id}">${c.className}</option>`;
+            });
 
-    let studentsToExport = allStudentsCache.filter(s => studentIdsInYear.includes(s.id));
-
-    if (searchTerm) {
-        studentsToExport = studentsToExport.filter(student => {
-            const studentClass = allClassesCache.find(c => c.studentIds?.includes(student.id));
-            let className = studentClass ? studentClass.className.toLowerCase() : '';
-            return (
-                student.studentId.toLowerCase().includes(searchTerm) ||
-                student.name.toLowerCase().includes(searchTerm) ||
-                student.gender.toLowerCase().includes(searchTerm) ||
-                (student.dob && student.dob.toLowerCase().includes(searchTerm)) ||
-                (student.phone && student.phone.toLowerCase().includes(searchTerm)) ||
-                className.includes(searchTerm)
-            );
-        });
-    }
-
-    if (studentsToExport.length === 0) {
-        showToast('គ្មានទិន្នន័យសិស្សសម្រាប់នាំចេញទេ។', true);
-        return;
-    }
-
-    const dataForSheet = studentsToExport.map((student, index) => {
-        const studentClass = allClassesCache.find(c => c.studentIds?.includes(student.id));
-        return {
-            'ល.រ': index + 1,
-            'អត្តលេខសិស្ស': student.studentId,
-            'ឈ្មោះសិស្ស': student.name,
-            'ភេទ': student.gender,
-            'ថ្នាក់': studentClass ? studentClass.className : 'N/A',
-            'ថ្ងៃខែឆ្នាំកំណើត': student.dob || '',
-            'លេខទូរស័ព្ទ': student.phone || ''
-        };
+            if (classesInYear.length > 0) {
+                resultsClassFilter.value = classesInYear[0].id;
+                resultsClassFilter.dispatchEvent(new Event('change'));
+            }
+        }
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(dataForSheet);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'បញ្ជីឈ្មោះសិស្ស');
+    resultsClassFilter.addEventListener('change', async () => {
+        const yearId = resultsYearFilter.value;
+        const classId = resultsClassFilter.value;
+        resultsExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសលទ្ធផល --</option>';
+        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសលទ្ធផល។</p>';
+        printResultsBtn.classList.add('hidden');
 
-    const fileName = `បញ្ជីសិស្ស_${selectedYear.name}${selectedClass ? '_' + selectedClass.className : ''}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+        if (yearId && classId) {
+            const settingsRef = doc(db, `artifacts/${appId}/users/${userId}/settings`, yearId);
+            const docSnap = await getDoc(settingsRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const resultOptions = [];
+                if (data.semester1?.reportName) resultOptions.push({ key: 'sem1_report', name: data.semester1.reportName });
+                if (data.semester2?.reportName) resultOptions.push({ key: 'sem2_report', name: data.semester2.reportName });
+                if (data.endOfYearResultName) resultOptions.push({ key: 'end_year_result', name: data.endOfYearResultName });
+
+                if (resultOptions.length > 0) {
+                    resultsExamFilter.innerHTML += resultOptions.map(opt => `<option value="${opt.key}">${opt.name}</option>`).join('');
+                    resultsExamFilter.value = resultOptions[0].key;
+                    resultsExamFilter.dispatchEvent(new Event('change'));
+                } else {
+                    resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">មិនមានលទ្ធផលถูกกำหนดสำหรับปีการศึกษានេះទេ។</p>';
+                }
+            }
+        }
+    });
+
+    resultsExamFilter.addEventListener('change', generateResultsTable);
 }
+
+async function generateResultsTable() {
+    const classId = resultsClassFilter.value;
+    const selectedKey = resultsExamFilter.value;
+
+    if (!classId || !selectedKey) {
+        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសឲ្យបានពេញលេញ។</p>';
+        printResultsBtn.classList.add('hidden');
+        return;
+    }
+
+    printResultsBtn.classList.remove('hidden');
+    // The rest of this function will be built out to display the results table
+    resultsTableContainer.innerHTML = `<p class="text-center text-gray-500 py-8">กำลังโหลดលទ្ធផល...</p>`;
+    // Placeholder for actual table generation logic
+}
+
 
 // --- EVENT LISTENERS (STABLE SETUP) ---
 function setupEventListeners() {
