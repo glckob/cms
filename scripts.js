@@ -87,7 +87,6 @@ const resultsYearFilter = document.getElementById('results-year-filter');
 const resultsClassFilter = document.getElementById('results-class-filter');
 const resultsExamFilter = document.getElementById('results-exam-filter');
 const resultsTableContainer = document.getElementById('results-table-container');
-const printResultsBtn = document.getElementById('print-results-btn');
 
 // --- UTILITY & NAVIGATION FUNCTIONS ---
 function showToast(message, isError = false) { const toast = document.getElementById('toast-notification'); const toastMessage = document.getElementById('toast-message'); toastMessage.textContent = message; toast.className = `toast max-w-xs text-white p-4 rounded-lg shadow-lg ${isError ? 'bg-red-600' : 'bg-green-600'} show`; setTimeout(() => { toast.classList.remove('show'); }, 3000); }
@@ -1886,7 +1885,6 @@ function setupResultsPageView() {
         resultsClassFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសថ្នាក់ --</option>';
         resultsExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសលទ្ធផល --</option>';
         resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសថ្នាក់ และលទ្ធផល។</p>';
-        printResultsBtn.classList.add('hidden');
 
         if (yearId) {
             const classesInYear = allClassesCache
@@ -1909,7 +1907,6 @@ function setupResultsPageView() {
         const classId = resultsClassFilter.value;
         resultsExamFilter.innerHTML = '<option value="">-- សូមជ្រើសរើសលទ្ធផល --</option>';
         resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសលទ្ធផល។</p>';
-        printResultsBtn.classList.add('hidden');
 
         if (yearId && classId) {
             const settingsRef = doc(db, `artifacts/${appId}/users/${userId}/settings`, yearId);
@@ -1926,7 +1923,7 @@ function setupResultsPageView() {
                     resultsExamFilter.value = resultOptions[0].key;
                     resultsExamFilter.dispatchEvent(new Event('change'));
                 } else {
-                    resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">មិនមានលទ្ធផលถูกกำหนดสำหรับปีการศึกษានេះទេ។</p>';
+                    resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">មិនមានលទ្ធផលถูกกำหนดសម្រាប់ปีការศึกษានេះទេ។</p>';
                 }
             }
         }
@@ -1941,14 +1938,95 @@ async function generateResultsTable() {
 
     if (!classId || !selectedKey) {
         resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">សូមជ្រើសរើសឲ្យបានពេញលេញ។</p>';
-        printResultsBtn.classList.add('hidden');
         return;
     }
 
-    printResultsBtn.classList.remove('hidden');
-    // The rest of this function will be built out to display the results table
-    resultsTableContainer.innerHTML = `<p class="text-center text-gray-500 py-8">กำลังโหลดលទ្ធផល...</p>`;
-    // Placeholder for actual table generation logic
+    resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">កំពុងទាញយកទិន្នន័យលទ្ធផល...</p>';
+
+    const selectedClass = allClassesCache.find(c => c.id === classId);
+    if (!selectedClass) return;
+
+    const assignedSubjectIds = selectedClass.subjectIds || [];
+    const assignedSubjects = allSubjectsCache
+        .filter(s => assignedSubjectIds.includes(s.id))
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const assignedStudentIds = selectedClass.studentIds || [];
+    const assignedStudents = allStudentsCache
+        .filter(s => assignedStudentIds.includes(s.id))
+        .sort((a, b) => a.name.localeCompare(b.name, 'km'));
+
+    if (assignedStudents.length === 0) {
+        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">មិនមានសិស្សនៅក្នុងថ្នាក់នេះទេ។</p>';
+        return;
+    }
+
+    const scorePromises = assignedStudents.map(student => getDoc(doc(db, `artifacts/${appId}/users/${userId}/classes/${classId}/scores`, student.id)));
+    const scoreSnapshots = await Promise.all(scorePromises);
+    
+    const studentResultsData = scoreSnapshots.map(snap => {
+        const studentId = snap.id;
+        const studentInfo = allStudentsCache.find(s => s.id === studentId);
+        const scoreData = snap.exists() ? snap.data()[selectedKey] : null;
+        return {
+            ...studentInfo,
+            scoreData: scoreData
+        };
+    }).filter(s => s.scoreData && s.scoreData.summary); // Only include students with summary data for the selected exam
+
+    // Sort students by rank
+    studentResultsData.sort((a, b) => (a.scoreData.summary.rank || 999) - (b.scoreData.summary.rank || 999));
+
+    if (studentResultsData.length === 0) {
+        resultsTableContainer.innerHTML = '<p class="text-center text-gray-500 py-8">មិនមានទិន្នន័យពិន្ទុសម្រាប់លទ្ធផលដែលបានជ្រើសរើស។</p>';
+        return;
+    }
+
+    let tableHtml = `<table class="min-w-full divide-y divide-gray-200 text-sm"><thead><tr>
+                        <th class="p-2 text-left font-medium text-gray-500 uppercase tracking-wider sticky top-0 left-0 bg-gray-50 z-30">ល.រ</th>
+                        <th class="p-2 text-left font-medium text-gray-500 uppercase tracking-wider sticky top-0 left-0 bg-gray-50 z-30">ឈ្មោះសិស្ស</th>`;
+    
+    assignedSubjects.forEach(subject => {
+        tableHtml += `<th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">${subject.name}</th>`;
+    });
+
+    tableHtml += `<th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">ពិន្ទុសរុប</th>
+                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">មធ្យមភាគ</th>
+                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">ចំណាត់ថ្នាក់</th>
+                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">និទ្ទេស</th>
+                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">អ. សរុប</th>
+                  <th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center sticky top-0 bg-gray-50 z-20">និទ្ទេសតាមមុខវិជ្ជា</th>
+                  </tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
+
+    studentResultsData.forEach((student, index) => {
+        const summary = student.scoreData.summary || {};
+        const scores = student.scoreData.scores || {};
+        const subjectGrades = summary.subjectGrades || {};
+
+        tableHtml += `<tr class="hover:bg-gray-50">
+                        <td class="p-2 whitespace-nowrap sticky left-0 bg-white z-10">${index + 1}</td>
+                        <td class="p-2 whitespace-nowrap sticky left-0 bg-white z-10 font-medium">${student.name}</td>`;
+
+        assignedSubjects.forEach(subject => {
+            tableHtml += `<td class="p-2 text-center">${scores[subject.id]?.toFixed(2) || '-'}</td>`;
+        });
+
+        tableHtml += `<td class="p-2 text-center font-bold">${summary.totalScore?.toFixed(2) || '-'}</td>
+                      <td class="p-2 text-center font-bold">${summary.average?.toFixed(2) || '-'}</td>
+                      <td class="p-2 text-center font-bold text-blue-600">${summary.rank || '-'}</td>
+                      <td class="p-2 text-center font-bold text-green-600">${summary.grade || '-'}</td>
+                      <td class="p-2 text-center">${summary.totalAbsence ?? '-'}</td>
+                      <td class="p-2 text-center text-xs whitespace-nowrap">`;
+        
+        assignedSubjects.forEach(subject => {
+            tableHtml += `<span class="font-mono px-1">${subjectGrades[subject.id] || ''}</span>`;
+        });
+
+        tableHtml += `</td></tr>`;
+    });
+
+    tableHtml += `</tbody></table>`;
+    resultsTableContainer.innerHTML = tableHtml;
 }
 
 
