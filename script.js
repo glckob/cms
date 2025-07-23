@@ -311,27 +311,33 @@ function setDefaultFilters() {
     // The cache is already sorted descending in subscribeToYears
     const latestYearId = allYearsCache[0].id;
 
-    // List of year filter elements to update
-    const yearFiltersToUpdate = [
+    // List of year filter elements to update automatically
+    const yearFiltersToAutoSelect = [
         chartYearFilter,
         classYearFilter,
-        rankingsYearFilter,
         studentYearFilter,
         subjectYearFilter,
         settingsYearSelect,
-        scoresYearFilter // Now includes the scores page filter
     ];
 
-    yearFiltersToUpdate.forEach(filterElement => {
+    yearFiltersToAutoSelect.forEach(filterElement => {
         if (filterElement) {
-            // Check if the latestYearId is a valid option before setting it
             if (filterElement.querySelector(`option[value="${latestYearId}"]`)) {
                 filterElement.value = latestYearId;
-                // Trigger the change event to update dependent dropdowns
                 filterElement.dispatchEvent(new Event('change'));
             }
         }
     });
+
+    // Explicitly reset Scores and Rankings pages to placeholder
+    if (scoresYearFilter) {
+        scoresYearFilter.value = "";
+        scoresYearFilter.dispatchEvent(new Event('change'));
+    }
+    if (rankingsYearFilter) {
+        rankingsYearFilter.value = "";
+        rankingsYearFilter.dispatchEvent(new Event('change'));
+    }
 }
 
 
@@ -1804,6 +1810,12 @@ function setupRankingsPageView() {
             classesInYear.forEach(c => {
                 rankingsClassFilter.innerHTML += `<option value="${c.id}">${c.className}</option>`;
             });
+
+            // Automatically select the first class if available
+            if (classesInYear.length > 0) {
+                rankingsClassFilter.value = classesInYear[0].id;
+                rankingsClassFilter.dispatchEvent(new Event('change'));
+            }
         }
     });
 
@@ -1817,9 +1829,9 @@ function setupRankingsPageView() {
         if (yearId && classId) {
             const settingsRef = doc(db, `artifacts/${appId}/users/${userId}/settings`, yearId);
             const docSnap = await getDoc(settingsRef);
+            let scoreEntryOptions = [];
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const scoreEntryOptions = [];
                 if (data.startOfYearTestName) scoreEntryOptions.push({ key: 'start_year_test', name: data.startOfYearTestName });
                 if (data.semester1) {
                     for (let i = 1; i <= 6; i++) { if (data.semester1[`month${i}`]) scoreEntryOptions.push({ key: `sem1_month_${i}`, name: data.semester1[`month${i}`] }); }
@@ -1836,6 +1848,12 @@ function setupRankingsPageView() {
                 if (data.endOfYearResultName) scoreEntryOptions.push({ key: 'end_year_result', name: data.endOfYearResultName });
                 
                 rankingsExamFilter.innerHTML += scoreEntryOptions.map(opt => `<option value="${opt.key}">${opt.name}</option>`).join('');
+            }
+
+            // Automatically select the first exam if available
+            if (scoreEntryOptions.length > 0) {
+                rankingsExamFilter.value = scoreEntryOptions[0].key;
+                rankingsExamFilter.dispatchEvent(new Event('change'));
             }
         }
     });
